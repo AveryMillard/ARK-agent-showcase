@@ -1,157 +1,140 @@
 # Project History
 
-*A running look at how this project got here, including the parts that didn't work the first time.*
+I figured I'd keep a bit of a history of this project, because the original idea and what I've actually spent the last month building are two pretty different things.
 
-This started in September 2026 as an experiment: could I get an AI to actually play **ARK: Survival Ascended**?
+I started working on it in September 2026, but I'd been thinking about it for years before that.
 
-Not just send a few commands, but eventually have its own character, understand what's around it, decide what it needs, and carry out tasks in the game world. ARK seemed like a pretty interesting place to try that. There are resources to find, things to craft, terrain to navigate, and plenty of opportunities for something to go wrong.
+## Before I started coding
 
-This page is the bigger story behind the project. It's organized around the milestones that actually changed how the system worked, rather than every little bug fix or commit. For the current state of the project, start with the [README](README.md).
+I think I was initially inspired by AIs being able to take on the roles of characters. Back when stuff like AI Dungeon and Character.AI was new, I started imagining a future where AI could actually play video games with you.
 
----
+Me and a friend ended up talking about ARK specifically because of its story. I remember reading the explorer notes on the original map and thinking about how cool it would be to experience something like that for yourself.
 
-## September 2026 — The original proof of concept
+The problem was that I also understood pretty well that human players weren't going to act like the people in those notes, because they know they're playing a game. And option B of having actual people on an island full of dinosaurs was pretty obviously out of the question XD
 
-The first version was much simpler than what I'm building now. Python could observe some information from the game and control the **player character** through keyboard inputs.
+So option C was basically to wait around until AI got good enough to try something like it.
 
-The early goal was resource gathering: find something useful, move toward it, interact with it, and keep track of whether the task succeeded. I used small test courses to see whether the whole process could work, including a three-tree gathering test that took about **118.5 seconds**.
+My original idea was pretty much "show an AI every frame, give it a personality, and convince it what it's seeing is real." But even years before I started coding this, I knew the whole 60 screenshots a second thing wasn't going to work. There's no way you can expect an LLM to process that much visual information and still react quickly enough to play a game.
 
-It was a useful proof of concept, but it had a pretty big limitation: the agent was essentially borrowing the player's body.
+I figured there needed to be some kind of reactive system sitting between the game and the LLM's higher-level thinking. The fast stuff, like movement and responding to what's happening right now, would be handled separately from the bigger decisions.
 
-That wasn't really what I wanted long-term. I wanted an independent character that could exist **alongside** the player. One that could carry its own items, move on its own, and interact with the same world rather than having Python pretend those interactions happened.
+That's still what I'm working toward. Funny enough, the high-level AI isn't actually integrated yet. Most of the work so far has been making the game side capable of doing the things I'd eventually want to ask it to do.
 
-So the next step was giving the agent an actual body.
+## September 2026: The first proof of concept
 
-## September 2026 — Giving the agent a character
+When I finally started making this, the first version controlled my own player character.
 
-I moved into the ARK DevKit and started experimenting with a native character controlled through Unreal Engine Blueprints.
+I had Python receiving information from ARK and issuing keyboard inputs, which was enough to start testing the basic idea. The early tests were mostly about finding resources, moving over to them, interacting with them, and checking whether any of it actually worked.
 
-My first approach borrowed behavior from an Ankylosaurus. It made sense at the time: dinosaurs already know how to move around and harvest resources, so maybe I could reuse those systems while giving the agent a human appearance.
+One of the first little benchmarks was collecting wood from three trees. The old version finished that in about 118.5 seconds.
 
-Turns out a dinosaur-based character and a human animation setup don't exactly get along.
+It wasn't exactly fast, but it did give me something concrete to work with.
 
-There were skeleton and animation problems, awkward poses, and a lot of assumptions built into the original character. I spent a while trying to make that setup work before deciding it was creating more problems than it solved.
+The bigger problem was that it was controlling me, not a separate character. I'd always imagined this as another survivor playing alongside you, and borrowing my keyboard wasn't really going to get me there.
 
-The eventual solution was a cleaner character based directly on ARK's native dinosaur-character framework, with a human mesh, a small custom animation setup, its own inventory, and native actions.
+So I moved over to the ARK DevKit to see if I could give the agent its own character.
 
-This was one of the more important architectural changes. Instead of fighting to adapt the wrong base character, I had a much simpler foundation to build on.
+## September 2026: Making an actual character
 
-## September–October 2026 — Getting real ARK interactions working
+This part got complicated pretty quickly.
 
-The next challenge was making sure the character wasn't just *looking* like it was playing ARK.
+ARK already has a bunch of native systems for creatures to move around, attack, harvest resources, and hold items. I figured I could take advantage of those rather than rebuild all of ARK's mechanics in Python.
 
-If it picked up a stone, I wanted that stone to exist in its actual inventory. If it harvested a bush or hit a tree, I wanted ARK itself to handle the resource and health changes. The Python side shouldn't be inventing those results.
+My first attempt used an Ankylosaurus as a sort of donor character. Since an Anky already interacts with resources, I thought I could borrow those systems and then put a human character on top.
 
-This took more investigation than I expected.
+That worked about as well as you might expect once animations got involved.
 
-For example, some loose resources and foliage don't behave like ordinary world objects. Regular collision traces weren't giving me the information I needed to interact with them reliably. I eventually had to work through ARK's own foliage-search and harvesting systems, including some rather unintuitive indexing behavior.
+I could get a human mesh to appear, but the skeleton, animation blueprint, and underlying dinosaur behavior didn't all agree on how a person was supposed to move. At one point I had a character who was technically idling but whose legs were stuck in an A-pose. I spent a while trying to work around that before deciding the whole setup was more trouble than it was worth.
 
-Once that was sorted out, native gathering started to work: resources were depleted in the world, real items were delivered to the character, and I could verify the results through game state.
+Eventually I went with a cleaner character based directly on ARK's native character framework, using a human mesh and a much smaller custom animation setup. It still uses native ARK mechanics, but without all the extra assumptions from the Ankylosaurus.
 
-It also reinforced a rule I've tried to follow throughout this project: **let the game handle its own mechanics, and let Python handle the agent's decisions and task logic.**
+That gave me a base to start adding inventory, attacks, equipment, and actual resource interactions.
 
-## October 6 — Movement gets a lot more serious
+## September to October: Getting harvesting to work
 
-Walking to a target sounds like it should be one of the easy parts. And sometimes it is! ARK's built-in movement can handle a straightforward route pretty well.
+One thing I wanted to avoid was having Python pretend something happened when ARK didn't actually do it.
 
-The trouble starts when it can't.
+If the character picked up a rock, it needed to be a real item in its inventory. If it harvested a bush or chopped down a tree, the resources needed to come from the actual game world.
 
-Early movement attempts could get stuck on terrain or obstacles, and simply issuing the same movement request again wasn't much of a solution. I wanted the character to recognize when progress had stopped and try to recover without forgetting where it was originally going.
+I thought some of that would be relatively straightforward since the mechanics already existed in ARK. Turns out there were a lot of details hiding behind them.
 
-That became the second version of the native movement system.
+Loose stones and bushes were especially annoying. The normal world traces I tried weren't reliably finding the foliage instances that ARK itself could interact with. Eventually I had to use ARK's own foliage-search and harvesting systems, including figuring out some weird indexing behavior in the results.
 
-The general idea was:
+There were also cases where a resource would lose health or disappear but the items didn't end up in the right inventory. So just seeing a harvesting animation, or even seeing the resource disappear, wasn't enough proof that the action was working properly.
 
-1. Try normal movement toward the destination.
-2. Detect when the character isn't making meaningful progress.
-3. Stop and search for a safe local detour using a grid and A* pathfinding.
-4. Validate the route before following it.
-5. Rejoin the original route and continue toward the same goal.
+Once that was figured out, I could actually see the character collect resources and carry them around in its own inventory. That was a lot closer to what I'd been trying to make.
 
-An early implementation could cause noticeable hitches while it worked through potential paths. Moving that validation across multiple frames fixed the worst of those pauses.
+## October 6: Movement and pathfinding
 
-By the end of this stage, the character could handle obstacles that had previously stopped it entirely. It still takes an occasional weird route, but being able to recover reliably mattered much more than having perfectly elegant movement.
+Movement was another one of those things that seemed simple until I started testing it.
 
-## October 10 — Connecting Python to the native character
+ARK's built-in MoveTo works fine when it can find a normal route. But if the character gets stuck trying to reach something, sending the same request over and over isn't very helpful.
 
-With movement, inventory, and harvesting working in the DevKit, I could finally start connecting those pieces back to the Python controller.
+I ended up building a recovery system around that. Most of the time it still uses ARK's normal navigation. If it stops making progress, it pauses, searches a local grid for a way around the obstruction using A*, checks that the route is actually safe, and then tries to rejoin the path toward its original destination.
 
-The systems communicate over a local WebSocket connection. Python requests an action, ARK performs it through its native character systems, and state updates or action results come back so Python can decide what to do next.
+I specifically didn't want it to forget its original goal just because it ran into something.
 
-One of the first useful end-to-end tasks was collecting wood:
+The first versions weren't particularly graceful. I had a point where checking possible paths would cause a big hitch in the editor because it was doing too much work at once. Eventually I spread that validation across multiple frames so it could think through a route without freezing everything.
 
-**Find a tree → navigate to it → confirm arrival → attack → check the resource/inventory changes → continue or move on.**
+It isn't perfect. Sometimes it takes a slightly weird route when a shorter one looks obvious to me. But it can recover from obstacles that would have stopped the earlier movement system entirely, so I was pretty happy to leave the smaller route-quality problems for later.
 
-This was a pretty big moment for me. The character wasn't following a pre-recorded movement path; it was responding to resource scans and the actual outcome of its actions.
+## October 10 and 11: Making Python control all of this
 
-The first native three-tree gathering test took **78.17 seconds**, compared with roughly **118.5 seconds** for the older player-controlled proof of concept. Those weren't intended as a perfectly controlled performance comparison, but they made it clear the new approach was worth pursuing.
+At this point I had a character that could move, harvest, and use an inventory, but I still needed the Python side to actually tell it what to do.
 
-## October 11 — Making the gathering loop less clunky
+The two sides communicate over a local WebSocket connection. Python can request an action, and the ARK side can send information back about movement, nearby resources, inventory changes, and other results.
 
-Once gathering worked, I started paying more attention to *how* it worked.
+The first proper gathering loop was for wood. Python would find a tree, send the character toward it, wait for movement to finish, start attacking, and check whether the tree was getting harvested.
 
-One bottleneck was surprisingly simple: the controller was waiting on resource scans between too many individual attacks. The scans were useful for checking progress, but they didn't need to dictate the timing of every swing.
+The first native three-tree test finished in 78.17 seconds, compared with 118.5 seconds for the old player-controlled version. I wouldn't call those perfectly controlled comparisons, but it was still a pretty nice improvement.
 
-I separated the attack timing from the slower state-update loop, while keeping checks for stale data and actions that weren't making progress.
+Then I noticed a lot of extra time was coming from waiting for resource scans in between attacks. The game didn't need to rescan everything after every single swing, so I separated attack timing from the slower process of checking inventory and resource health.
 
-The three-tree course went from around **78 seconds** in the first native test to **48.59 seconds** in a later test using a more practical attack interval. The human reference for that short course was around **43 seconds**.
+After a bunch of tests with different intervals, I got the three-tree course down to 48.59 seconds with a timing setting I was comfortable using. For comparison, my own human run of that smaller course was around 43 seconds.
 
-I also tested faster settings, but the quickest-looking result wasn't automatically the most reliable. Some settings started producing apparent swings that didn't connect. I ended up favoring a little extra timing margin over shaving every possible fraction of a second.
+I did get faster experimental results, but some of those settings appeared to produce swings that didn't actually connect. I decided I'd rather keep a little extra timing margin than squeeze out every possible second.
 
-The goal isn't necessarily to make the agent faster than a human. I mainly want it to feel competent, reasonably responsive, and able to finish the task without getting stuck.
+Plus, I'm not really trying to make the agent faster than a person at everything. If it's only a little slower and doesn't get stuck constantly, that's already a pretty good result to me.
 
-## October 12 — Collecting all resources
+## October 12: Putting the actions together
 
-By this point, there were a bunch of individual actions that worked: harvesting bushes, collecting loose stones, equipping a Stone Pick, clearing trees, and mining regular and metal-rich rocks.
+Once wood gathering was working, I started getting the other resources and actions into place.
 
-Getting each one working separately was nice. Getting all of them to work **in one uninterrupted course** was the real test.
+That meant bushes, loose stones, regular rocks, metal-rich rocks, and equipment changes. Most of them had their own little problems.
 
-The course uses a fixed sequence:
+The loose stones were a good example. I initially assumed that if Python picked a specific stone to collect, pressing the interaction key near it would collect that exact stone. But ARK can decide to pick up a different nearby stone instead, which made my tracking logic pretty confused.
 
-1. Harvest the bushes.
-2. Collect loose stones.
-3. Request the Stone Pick.
-4. Clear the trees.
-5. Mine the ordinary rocks.
-6. Mine a metal-rich rock.
+The fix was to stop assuming I knew exactly which stone had been collected. If the inventory count was going up, the action was working. If it stopped going up, then it was time to scan again and find somewhere else to try.
 
-Even the loose-stone step had its own little surprise. I initially assumed that interacting near a selected stone meant ARK would collect *that exact stone*. It doesn't always work that way; the game may pick another nearby resource instead. The better approach was to trust real inventory changes, then rescan and reposition when collecting stopped working.
+After getting those individual pieces working, I put together a full resource gathering course. The scripted order was bushes, loose stones, equipping a Stone Pick, trees, regular rocks, and finally one metal-rich rock.
 
-Eventually, the full scripted course passed.
+The first complete run passed in 2:57.87. I later recorded another run alongside a human attempt so I could put them side by side.
 
-I also recorded a side-by-side comparison with a human player completing the course:
-
-| Run | Completion time |
+| Run | Time |
 | --- | ---: |
-| Human | **2:38** |
-| Autonomous agent | **3:17.04** |
+| Human | 2:38 |
+| Autonomous agent | 3:17.04 |
 
-The agent finished in about **1.25× the human's time**. Watching the entire run, the difference felt pretty reasonable. Most individual actions were only a little slower; that time just adds up across a whole course.
+The agent took about 1.25 times as long as I did. Watching the recording, I didn't really get the feeling that it was taking forever. It had two slightly strange pathfinding moments, but most of the difference was just small delays across a lot of individual actions.
 
-**[Watch the full human-vs-agent comparison](https://github.com/AveryMillard/ARK-agent-showcase/releases/tag/demo-001)**
+[Here's that comparison video](https://github.com/AveryMillard/ARK-agent-showcase/releases/tag/demo-001).
 
-### An important distinction
+I do want to be clear about what this test is, though. The order of the tasks was scripted in Python. The character was doing the actual moving, interacting, harvesting, and checking results in ARK, but it wasn't an LLM independently figuring out the course from scratch.
 
-This course is a **scripted integration test**, not a demonstration of independent AI planning.
+That's a separate milestone, and one I haven't reached yet.
 
-I defined the order of the stages ahead of time. The character handles the actual navigation, interactions, harvesting, and checking of results, but a higher-level AI isn't yet deciding what to do next from an open-ended goal.
+## What I'm planning next
 
-I think that's an important distinction to make, because the next stage of the project is specifically about closing that gap.
+Now that the game side can complete a full sequence, I want to start giving the higher-level AI more responsibility.
 
----
+The example I keep coming back to is telling it "let's get some basic tools" and having it figure out what to do from there. It should be able to check what it has, decide what it still needs, gather materials, craft what it can, and change plans when something doesn't work.
 
-## Where the project goes next
+Before that, there are still some less exciting things to sort out, like more general inventory reporting, better confirmation that actions succeeded or failed, and a proper crafting interface.
 
-Now that the individual actions are working together, I want to give the planning side more responsibility.
+Longer term I'd also love for the AI to start building reusable routines of its own. Instead of having to explain how to collect wood every single time, it could learn that a sequence of smaller actions is useful and reuse it later.
 
-Instead of handing it the entire gathering course in advance, I'd like to be able to say something like **"let's get some basic tools"** and have the agent figure out the necessary steps: what resources it needs, what to gather first, whether it already has the right equipment, and what to try when something doesn't work.
+I also like that the Python side of this doesn't necessarily have to be tied to ARK forever. Obviously the game-specific actions won't carry over directly, but a lot of the higher-level planning and routine logic might.
 
-Some of the next pieces include more general inventory reporting, clearer success/failure feedback from native actions, crafting, and a way for the agent to chain smaller actions into useful routines.
+For now, though, I've got plenty left to do in ARK.
 
-One of the things I like most about this project is that the higher-level agent architecture doesn't have to stay tied to ARK forever. The game-specific interactions will change, but the ideas behind task decomposition, planning, recovery, and reusable routines should be useful elsewhere too.
-
-That's the hope, anyway. There's still quite a lot to build.
-
----
-
-*This is a public project journal. The development source code and DevKit project are currently maintained separately and aren't included in this repository.*
+The actual source code and DevKit project are kept separately. This repo is where I'm keeping the public demos and notes as I go.
