@@ -1,67 +1,44 @@
 # ARK Autonomous Agent
 
-*An experimental AI companion project for ARK: Survival Ascended.*
+This is a project I've been messing around with to see how far I can get toward having an AI actually play ARK: Survival Ascended alongside me.
 
-I've been working on an agent that can have its **own character inside ARK**. Not just a script pressing buttons for my player, but a separate character that can navigate the world, find resources, use real items, and eventually make its own decisions about how to complete a task.
+The idea has been in my head for years. Back when AI Dungeon and Character.AI were pretty new, me and a friend started talking about how cool it'd be if AI characters could eventually play games with you. ARK seemed like a particularly interesting one because of its story. I remember reading the explorer notes on the first map and imagining what it would be like if the other survivors actually behaved like people trying to survive, instead of players who already know they're in a game.
 
-The long-term idea is pretty simple to describe: I want to be able to say something like **"let's go get some basic tools"** and have the agent work out what that actually involves.
+So that's basically what I'm working toward. I want to give an AI its own character, let it interact with the same world as me, and eventually be able to tell it something like "let's go get some basic tools" without having to explain every individual step.
 
-Getting there is a lot less simple, which is most of the fun (and debugging) of this project.
+I finally started building it in September 2026. Right now most of the work is getting the game side reliable enough that a higher-level AI will actually have something to work with.
 
-This repository is the public-facing side of the experiment: demonstrations, progress updates, and a history of what I've built so far. The actual development code and ARK DevKit project are kept separately for now.
+## Latest demo: Collecting All Resources Course
 
-## Latest milestone — Collecting All Resources Course
+I recently got a full resource gathering course working and decided to record myself doing the same course to see how the two compared.
 
-**October 12, 2026**
+The course has the agent gather from bushes, collect loose stones, equip a Stone Pick, chop down trees, mine regular rocks, and finally mine a metal-rich rock.
 
-I recently got the first full resource-gathering course working from start to finish. It combines several actions that I'd previously only tested on their own: gathering foliage, picking up loose stones, equipping a tool, harvesting trees, and mining stone and metal-rich rocks.
-
-To see how it compared to actually playing the game, I recorded myself completing the same course and put the two runs side by side.
-
-| | Completion time |
+| Run | Time |
 | --- | ---: |
-| **Human player** | **2:38** |
-| **Autonomous agent** | **3:17.04** |
+| Human | 2:38 |
+| Autonomous agent | 3:17.04 |
 
-The agent took about **1.25× as long** as the human run. I'm pretty happy with that for now. There are still some slightly odd movement choices here and there, but the full sequence works, and it doesn't feel painfully slow to watch.
+So the agent took about 1.25x as long as I did. I'm pretty happy with that, honestly. There were a couple weird pathfinding moments, but watching it didn't feel like I was waiting forever for it to do something. It's mostly a few extra seconds here and there that add up over the course.
 
-**[Watch the human-vs-agent comparison and read the release notes →](https://github.com/AveryMillard/ARK-agent-showcase/releases/tag/demo-001)**
+[Video and release notes](https://github.com/AveryMillard/ARK-agent-showcase/releases/tag/demo-001)
 
-[Download the full MP4](https://github.com/AveryMillard/ARK-agent-showcase/releases/download/demo-001/human-vs-agent-comparison.mp4) *(around 285 MiB)*
+[Full comparison video (MP4)](https://github.com/AveryMillard/ARK-agent-showcase/releases/download/demo-001/human-vs-agent-comparison.mp4)
 
-**One important clarification:** this is a **scripted course**, meaning I defined the sequence of tasks in advance. The agent carries out the navigation and interactions using the game world and real feedback, but it isn't independently planning the whole course yet. That's the next big goal.
+One thing worth mentioning is that this is a scripted course. I decided the order of the tasks ahead of time. The agent handles moving around, interacting with resources, and checking the results, but there isn't a high-level AI independently planning the whole thing yet. Getting to that point is what I want to tackle next.
 
-## How it works
+## How it works right now
 
-The project currently has two main sides:
+I've got the project split between ARK's DevKit and Python.
 
-- **ARK / Unreal Engine Blueprints:** The character itself, movement, animation, native inventory, resource detection, harvesting, and interaction with the game world.
-- **Python:** A controller that communicates with ARK through a local WebSocket bridge, requests actions, watches the results, and coordinates tasks.
+On the ARK side, there's a separate character with its own inventory, equipment, movement, and harvesting. I wanted those interactions to use the game's actual systems rather than just simulate collecting items in Python. Movement mostly uses ARK's built-in navigation, with some local A* pathfinding to recover when it gets stuck.
 
-Some of the trickier parts have been getting native ARK harvesting to work correctly, building movement recovery for when normal navigation gets stuck, and making sure an action actually succeeded instead of just assuming it did.
+Python talks to the game through a WebSocket connection. It can request actions, read information about nearby resources and inventory, and keep a task going based on what actually happened.
 
-The bigger design goal is to keep the agent's planning separate from the game-specific mechanics. ARK is the testing ground, but I'd love for the higher-level logic to eventually be reusable in other projects.
+Eventually I want the LLM side to handle the larger decisions, while the faster, more reactive stuff stays closer to the game. I've also been thinking about how much of that higher-level logic could be reused outside ARK, since the planning side shouldn't need to know about the game's internals.
 
-## Current progress
+There's still a lot left to do. Better action feedback, a more general inventory system, crafting, and especially letting the AI make its own plans are all on the list.
 
-So far, the agent can:
+I also wrote up a [project history](PROJECT_HISTORY.md) with the earlier experiments and some of the stuff that went wrong along the way. I'll probably keep using this repo for videos and updates as I get more working.
 
-- Exist as its own native character, with real inventory and equipment interactions.
-- Detect nearby resources and observe changes to inventory and resource health.
-- Gather foliage and loose stones, harvest trees, and mine rocks with native game interactions.
-- Navigate to targets, with local A* recovery when direct movement gets stuck.
-- Run a complete multi-stage gathering course without me manually steering it through each action.
-
-**Still to come:** independent high-level planning, more general inventory and crafting support, stronger action feedback and recovery, and eventually reusable routines the agent can assemble for itself.
-
-## Want the longer story?
-
-**[Read the project history →](PROJECT_HISTORY.md)**
-
-That page starts with the original keyboard-controlled proof of concept and walks through the move to a native character, the less-successful experiments, pathfinding, harvesting, and the first full benchmark.
-
-I'll keep adding demonstrations and development notes here as the project grows. This is as much a record of figuring things out as it is a showcase of the parts that work.
-
----
-
-*Unofficial personal engineering project built around ARK: Survival Ascended. Not affiliated with the game's developers.*
+This is an unofficial personal project, not affiliated with the developers of ARK.
