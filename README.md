@@ -1,6 +1,6 @@
 # ARK Autonomous Agent
 
-This is a project I've been messing around with to see how far I can get toward having an AI actually play ARK: Survival Ascended alongside me.
+A personal game AI and systems-integration project exploring how an autonomous character could play ARK: Survival Ascended alongside a human. Built with Python, ARK's DevKit, and a WebSocket bridge, it currently demonstrates scripted resource gathering with game-state feedback and an initial crafting interface.
 
 The idea has been in my head for years. Back when AI Dungeon and Character.AI were pretty new, me and a friend started talking about how cool it'd be if AI characters could eventually play games with you. ARK seemed like a particularly interesting one because of its story. I remember reading the explorer notes on the first map and imagining what it would be like if the other survivors actually behaved like people trying to survive, instead of players who already know they're in a game.
 
@@ -37,7 +37,36 @@ Python talks to the game through a WebSocket connection. It can request actions,
 
 Eventually I want the LLM side to handle the larger decisions, while the faster, more reactive stuff stays closer to the game. I've also been thinking about how much of that higher-level logic could be reused outside ARK, since the planning side shouldn't need to know about the game's internals.
 
-There's still a lot left to do. Better action feedback, a more general inventory system, crafting, and especially letting the AI make its own plans are all on the list.
+## Crafting: implementation and validation status
+
+As of the October 18, 2026 Python update, crafting is implemented at the controller level for **Stone Pick and Stone Hatchet**. That is a narrower milestone than an agent independently deciding which tools it needs and gathering the ingredients.
+
+| Capability | Current evidence |
+| --- | --- |
+| Stone Pick crafting in ARK | Successful live crafting was recorded in earlier project documentation. |
+| Python support for Stone Pick and Stone Hatchet | Both recipes are configured, with multiple accepted command aliases for each. Requests craft one item at a time. |
+| Python verification behavior | Eight crafting tests focus on Stone Pick, using simulated game responses and inventory updates. These are controller tests, not live DevKit integration tests. |
+| Stone Hatchet end-to-end integration | Python configuration is present; successful live crafting through the ARK DevKit bridge still needs independent validation. |
+| Autonomous tool planning | Future work. The current controller does not independently plan a gather-and-craft workflow. |
+
+### How a craft is confirmed
+
+Python sends a crafting request over the WebSocket bridge; the ARK Blueprint side is responsible for the actual inventory transaction. Python does not subtract ingredients or award a pretend output. The game's recipe allowlist remains authoritative, so adding a Python recipe entry alone does not establish working game integration.
+
+The controller checks the outcome in two stages:
+
+1. **Match the response to the request.** Each request has a unique ID. The controller waits for a response with that ID and checks that the item and quantity match what it requested.
+2. **Verify the inventory change.** A “created” response alone is insufficient. The controller requires an inventory snapshot received after the creation response, showing exactly one more of the requested item than the count captured before sending the request. Only then does it report verified success.
+
+This separates “the command was sent,” “the game reported creation,” and “the output was observed in inventory.” Rejections are reported as such. Missing responses or inventory confirmation leave the outcome unconfirmed; the controller warns against automatic retries because the game may already have completed the transaction. It also blocks overlapping crafting requests.
+
+The existing tests cover confirmation after an inventory increase, delayed inventory updates, missing-material rejection, duplicate requests, missing inventory telemetry, unsupported recipes, missing responses, and malformed responses. They support the Python verification design; they do not prove every configured recipe works in-game.
+
+## Next steps
+
+The immediate crafting milestone is live Stone Hatchet testing through the DevKit bridge, with recipe-specific test coverage to accompany it. Broader inventory handling, better action feedback, and higher-level planning remain ongoing work. The longer-term goal is still to ask for basic tools and have the agent choose and execute the necessary steps.
+
+The implementation source and DevKit project are maintained separately; this repository shares demonstrations, architecture, and development notes.
 
 I also wrote up a [project history](PROJECT_HISTORY.md) with the earlier experiments and some of the stuff that went wrong along the way. I'll probably keep using this repo for videos and updates as I get more working.
 
